@@ -1,0 +1,39 @@
+
+dataset:
+  name: unimed
+  data_dir: 
+hydra:
+  run:
+    dir: ${config.output_dir}/${hydra:job.name}-${now:%Y-%m-%d}/${now:%H-%M-%S}
+
+config:
+  num_classes: 3
+  num_epochs: 200
+  #init_lr: 5e-5
+  init_lr: 1e-4
+  batch_size: 8
+  log_interval: 5 # 每个batch打印一次日志
+  save_interval: 5 # 每隔5个epoch保存一次模型
+  latest_checkpoint_file: "latest_checkpoint.ckpt"
+  pred_data_path: "/disk/SYZ/Xray-Diffsuion/datacsv/TotalPelvic_600_v2.csv"
+  output_dir : "./logs/${config.name}"
+  job_name: ${hydra:job.name}
+  hydra_path: ${hydra:runtime.output_dir}
+  # CLIP ViT-L/14
+  # name: CLIP-ViT-L_14
+  # version: '/disk/SYZ/Xray-Diffsuion/clip-vit-large-patch14'
+  # device: 'cuda:1'
+  # max_length: 77
+  # freeze: True
+  #UniCLIP
+  text_encoder_config:
+    name: UniCLIP
+    model_name: 'ViT-B-16-quickgelu'
+    pretrained_weights: "/disk/SYZ/UniMed-CLIP-main/unimed_clip_vit_b16.pt"
+    device: 'cuda:1'
+    text_encoder_name: "/disk/SYZ/UniMed-CLIP-main/BiomedNLP-BiomedBERT-base-uncased-abstract"
+    context_length: 128
+    freeze: True
+    # input_dim: 59136  # CLIP ViT-L/14
+    input_dim: 512  # UniCLIP
+

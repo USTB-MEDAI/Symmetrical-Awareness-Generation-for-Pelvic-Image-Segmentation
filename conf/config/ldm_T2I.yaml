@@ -1,0 +1,136 @@
+name: 'ldm_T2I'
+#****** Data settings ******
+image_size: 128 # resize input images to this size
+# pad_channel: 16
+resize_size: [128,128,128]
+img_resize_size: [128,128,128] 
+
+cond_path: "/disk/SYZ/Xray-Diffsuion/datacsv/TotalPelvic_600_v2.csv" 
+data_path: "/disk/SYZ/Xray-Diffsuion/datacsv/TotalPelvic_600_v2.csv"
+
+# cond_path: "/home/syz/L1-4data/label_demo" 
+# data_path: "/home/syz/L1-4data/source_demo"
+
+# cond_path: "/disk/syz/PelvicT2Idata.csv" 
+# data_path: "/disk/syz/PelvicT2Idata.csv"
+  
+# cond_path: "/disk/ssy/data/drr/result/split2/feijiejieDR"
+
+# cond_path: "/disk/syz/PelvicT2Idata_v2.csv" 
+# data_path: "/disk/syz/PelvicT2Idata_v2.csv"
+
+output_dir : "./logs/${config.name}"  # the traning logs saved
+
+latent_diffusion:
+  base_learning_rate:  5.0e-5 #5.0e-5
+  linear_start: 0.00085    #0.0015
+  linear_end: 0.012      #0.0155
+  num_timesteps_cond: 1
+  high_low_mode: False
+  cond_nums: [1]   #[1,2,3]
+
+
+  log_every_t: 200
+  timesteps: 1000    #之前都属用500算的，这里改成1000
+  loss_type: l1
+
+  first_stage_key: "image"
+  cond_stage_key: "caption"
+
+  image_size: 16
+  channels: 4
+
+  cond_stage_trainable: False  # True
+  concat_mode: False #True concat mode, False crossattn mode
+  scale_by_std: True
+  monitor: 'val/loss_simple_ema'
+  first_stage_config:
+    base_learning_rate: 0.0001
+    sync_dist: True
+    # params:
+    monitor: "val/rec_loss"
+    # ckpt_path: "/disk/cc/Xray-Diffsuion/logs/autoencoder/pl_train_autoencoder-2024-10-28/16-40-35-zhougu/pl_train_autoencoder-epoch660-val_rec_loss0.00.ckpt"
+    ckpt_path: "/disk/SYZ/Xray-Diffsuion/logs/pl_train_autoencoder-epoch130-val_rec_loss0.00.ckpt"
+    # ckpt_path: "/disk/cc/Xray-Diffsuion/logs/autoencoder/pl_train_autoencoder-2024-09-25/10-47-33-pengu/pl_train_autoencoder-epoch290-val_rec_loss0.01.ckpt"
+    embed_dim: 4
+    ddconfig:
+      double_z: True
+      z_channels: 4
+      resolution: 128
+      in_channels: 2    #原始为1
+      out_ch: 2         #原始为1
+      ch: 32            #原始为32
+      ch_mult: [1,2,4,4]  # num_down = len(ch_mult)-1   #1 2 2 2 4
+      num_res_blocks: 2
+      attn_resolutions: []
+      dropout: 0.0
+    lossconfig:
+      disc_start: 10000
+      kl_weight: 1.0e-4
+      disc_weight: 0.5
+      highlow_weight: 0
+      high_limit: 0.04
+      low_limit: 0.04
+      disc_in_channels: 2
+      perceptual_weight: 0
+
+  cond_stage_config:
+    # CLIP ViT-L/14
+    # version: '/home/syz/Xray-Diffsuion/clip-vit-large-patch14'
+    # device: 'cuda:0'
+    # max_length: 77
+    # checkpoint_path: '/disk/syz/Xray-Diffsuion/logs/CLIP-ViT-L_14/TextClassHead-2025-03-19/00-46-23/latest_checkpoint.ckpt'
+    # freeze: True
+    #UniCLIP
+    model_name: 'ViT-B-16-quickgelu'
+    pretrained_weights: "/disk/SYZ/UniMed-CLIP-main/unimed_clip_vit_b16.pt"
+    device: 'cuda:1'
+    text_encoder_name: "/disk/SYZ/UniMed-CLIP-main/BiomedNLP-BiomedBERT-base-uncased-abstract"
+    context_length: 77
+    checkpoint_path: "/disk/SYZ/Xray-Diffsuion/logs/UniCLIP/TextClassHead-2025-04-01/18-12-54/latest_checkpoint.ckpt"
+
+  coord_stage_config:
+    coord_dim: 3
+    embed_dim: 512
+
+  unet_config:
+    dims: 3
+    image_size: 16  ##
+    in_channels: 4   #concat：channel_x+channel_cond  crossattn：channel_x
+    out_channels: 4
+    model_channels: 128 #原192 ##
+    attention_resolutions: [4,2,1]  #原[1,2,4,8]
+    num_res_blocks: 2
+    channel_mult: [1,2,4,4]  #原[1,2,3,4]
+    num_heads: 8
+    use_spatial_transformer: True    #True：crossattn，False：selfattn
+    use_scale_shift_norm: True
+    resblock_updown: True
+    use_fp16: True
+
+    context_dim: 512      #cond_dim
+    transformer_depth: 1
+    use_checkpoint: true # save_memory
+    legacy: False
+
+  scheduler_config:
+    warm_up_steps: [26000]  #原[13500]
+    cycle_lengths: [10000000000000]       #[10000000000000]   #原
+    f_start: [1.e-6]
+    f_max: [1.]
+    f_min: [1.]  #原始是1.0
+    # step_size: 540   #batch*epoch/25
+    # gamma: 1.0
+
+
+trainer:
+  benchmark: True
+  accumulate_grad_batches: 2
+  devices: [1]
+  # devices: [0]
+  accelerator: "auto"
+  max_epochs: 1000
+  precision: "bf16-mixed"
+  check_val_every_n_epoch: 10
+  # strategy: "ddp_find_unused_parameters_true"
+
